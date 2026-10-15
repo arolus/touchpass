@@ -65,11 +65,24 @@ keycode интерпретируется **активной** раскладко
 
 ## 2FA codes (OTP)
 
-TouchPass also stands in for an authenticator app: menu **OTP → [folder →]
-account** → Touch ID → the current code is typed into the focused field + Enter
-(the same keystroke path, layout switch included, as «Ввести пароль») and copied
-to the clipboard as a fallback (wiped after 45 s unless something else was copied).
-A code with under 3 s left is not typed — TouchPass waits for the next one.
+TouchPass also stands in for an authenticator app. Menu layout:
+
+```
+OTP → WordPress.org → rmcalculator → Ввести код      Touch ID → typed + Enter, and copied
+                                   → Backup Codes…   Touch ID → view / edit / copy
+                                   → Move ▸          folders · No Folder · New Folder…
+                                   → Remove…         confirm + Touch ID
+                    → Rename…                         the accounts stay in it
+                    → Remove                          the folder only: its accounts move to the top
+    → (accounts outside folders, same submenu)
+    → Scan QR Code… · Add Manually… · Add Folder…
+```
+
+«Ввести код» types the current code into the focused field + Enter (the same
+keystroke path, layout switch included, as «Ввести пароль») and copies it as a
+fallback (wiped after 45 s unless something else was copied). A code with under
+3 s left is not typed — TouchPass waits for the next one. The code is not shown
+in the menu on purpose: drawing it would read the key without Touch ID.
 
 Adding an account (OTP submenu):
 
@@ -88,13 +101,10 @@ After saving, the current code is shown and copied, and «Type It» types it int
 the field that was focused before — to finish the site's "enter the code" step.
 
 - **Folders:** the save dialog has a folder field (pick or type a new name;
-  defaults to the issuer). **Group into Folder…** ticks several accounts at once
-  and moves them into an existing or a new folder; an empty name moves them back
-  to the top level. Inside a folder "WordPress.org: alice" shows as "alice". A
-  folder exists while it has accounts. Moving needs no Touch ID.
-- **Backup Codes ▸ account** — after Touch ID, view, paste, edit or copy the
-  site's one-time backup codes.
-- **Remove ▸ account** — confirm, then Touch ID.
+  defaults to the issuer); Move in an account's menu changes it later, with no
+  Touch ID. Inside a folder "WordPress.org: alice" shows as "alice". A folder
+  with accounts comes from the items themselves (so it syncs with them);
+  «Add Folder…» also remembers empty ones, in UserDefaults on this Mac.
 
 Storage: one Keychain item per account — service `com.arsidian.touchpass.otp`,
 account = the menu name, data = JSON (key, algorithm, digits, period, issuer,

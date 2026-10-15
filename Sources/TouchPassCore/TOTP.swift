@@ -240,12 +240,18 @@ public struct OTPEntry: Equatable, Sendable {
     }
 }
 
-/// The menu layout: loose accounts first, then folders, both sorted case-insensitively.
-public func groupByFolder(_ entries: [OTPEntry]) -> (loose: [String], folders: [(name: String, accounts: [String])]) {
+/// The menu layout: accounts outside folders, and the folders with their
+/// accounts, all sorted case-insensitively. `emptyFolders` are folders created
+/// with "Add Folder" that may have no accounts yet; a blank one is ignored.
+public func groupByFolder(_ entries: [OTPEntry], emptyFolders: [String] = [])
+    -> (loose: [String], folders: [(name: String, accounts: [String])]) {
     func sorted(_ xs: [String]) -> [String] {
         xs.sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
     }
     var byFolder: [String: [String]] = [:]
+    for f in emptyFolders {
+        if let name = OTPEntry(name: "", folder: f).folder { byFolder[name, default: []] = byFolder[name] ?? [] }
+    }
     var loose: [String] = []
     for e in entries {
         if let f = e.folder { byFolder[f, default: []].append(e.name) } else { loose.append(e.name) }

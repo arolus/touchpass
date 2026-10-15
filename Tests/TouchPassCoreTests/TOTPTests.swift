@@ -153,3 +153,13 @@ final class FolderTests: XCTestCase {
         XCTAssertEqual(displayName("alice", inFolder: nil), "alice")
     }
 }
+
+final class EmptyFolderTests: XCTestCase {
+    func testEmptyFoldersAreListedAndMergedWithUsedOnes() {
+        let g = groupByFolder([OTPEntry(name: "a", folder: "WordPress.org")],
+                              emptyFolders: ["Clients", " ", "WordPress.org"])
+        XCTAssertEqual(g.folders.map(\.name), ["Clients", "WordPress.org"])
+        XCTAssertEqual(g.folders[0].accounts, [])
+        XCTAssertEqual(g.folders[1].accounts, ["a"])
+    }
+}

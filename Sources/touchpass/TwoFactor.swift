@@ -91,8 +91,12 @@ enum OTPKeychain {
         entries().map(\.name).sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
     }
 
-    /// Folder names in use, sorted.
-    static func folders() -> [String] { groupByFolder(entries()).folders.map(\.name) }
+    /// Every folder (with accounts or created empty), sorted.
+    static func folders() -> [String] { layout().folders.map(\.name) }
+
+    static func layout() -> (loose: [String], folders: [(name: String, accounts: [String])]) {
+        groupByFolder(entries(), emptyFolders: OTPFolders.created)
+    }
 
     /// Moves an account into a folder (nil or blank = top level). Attributes only.
     @discardableResult
@@ -145,6 +149,27 @@ enum OTPKeychain {
     static func delete(_ name: String) -> Bool {
         let status = SecItemDelete(query(name) as CFDictionary)
         return status == errSecSuccess || status == errSecItemNotFound
+    }
+}
+
+// MARK: - Empty folders
+
+/// Folders made with "Add Folder" before anything is moved into them. A folder
+/// that has accounts needs no record (it comes from the items' comment
+/// attribute, which syncs with them); this list is only the menu's memory of
+/// empty ones, in UserDefaults — folder names, nothing secret, this Mac only.
+enum OTPFolders {
+    private static let key = "otpFolders"
+
+    static var created: [String] {
+        get { UserDefaults.standard.stringArray(forKey: key) ?? [] }
+        set { UserDefaults.standard.set(Array(Set(newValue)).sorted(), forKey: key) }
+    }
+
+    static func add(_ name: String) { created.append(name) }
+    static func remove(_ name: String) { created.removeAll { $0 == name } }
+    static func rename(_ old: String, to new: String) {
+        if created.contains(old) { created = created.filter { $0 != old } + [new] }
     }
 }
 
@@ -255,61 +280,82 @@ final class TwoFactorController: NSObject {
 
     // MARK: Menu
 
-    /// Loose accounts, then one submenu per folder; then add / organize / manage.
+    /// OTP → folder → account → Ввести код / Backup Codes / Move / Remove;
+    /// a folder also has Rename and Remove; then the accounts outside folders,
+    /// and adding: Scan QR Code, Add Manually, Add Folder.
     func buildMenu() -> NSMenu {
         let menu = NSMenu()
-        let groups = groupByFolder(OTPKeychain.entries())
-        let names = OTPKeychain.names()
-        if names.isEmpty {
+        let layout = OTPKeychain.layout()
+        let folders = layout.folders.map(\.name)
+        if layout.folders.isEmpty && layout.loose.isEmpty {
             menu.addItem(NSMenuItem(title: "No accounts yet", action: nil, keyEquivalent: ""))
         }
-        for name in groups.loose { menu.addItem(accountItem(name, folder: nil)) }
-        for folder in groups.folders {
+        for folder in layout.folders {
             let parent = NSMenuItem(title: folder.name, action: nil, keyEquivalent: "")
             parent.image = NSImage(systemSymbolName: "folder", accessibilityDescription: "Folder")
             let sub = NSMenu()
-            for name in folder.accounts { sub.addItem(accountItem(name, folder: folder.name)) }
+            if folder.accounts.isEmpty {
+                sub.addItem(NSMenuItem(title: "Empty — Move accounts here", action: nil, keyEquivalent: ""))
+            }
+            for name in folder.accounts { sub.addItem(accountItem(name, folder: folder.name, folders: folders)) }
+            sub.addItem(.separator())
+            sub.addItem(action("Rename…", #selector(renameFolderClicked(_:)), folder.name))
+            sub.addItem(action("Remove", #selector(removeFolderClicked(_:)), folder.name))
             parent.submenu = sub
             menu.addItem(parent)
         }
+        for name in layout.loose { menu.addItem(accountItem(name, folder: nil, folders: folders)) }
         menu.addItem(.separator())
         menu.addItem(action("Scan QR Code…", #selector(scanClicked)))
         menu.addItem(action("Add Manually…", #selector(addClicked)))
-        if !names.isEmpty {
-            menu.addItem(.separator())
-            menu.addItem(action("Group into Folder…", #selector(groupClicked)))
-            menu.addItem(namesSubmenu("Backup Codes", #selector(backupClicked(_:)), names))
-            menu.addItem(namesSubmenu("Remove", #selector(removeClicked(_:)), names))
-        }
+        menu.addItem(action("Add Folder…", #selector(addFolderClicked)))
         return menu
     }
 
-    private func accountItem(_ name: String, folder: String?) -> NSMenuItem {
-        let item = NSMenuItem(title: displayName(name, inFolder: folder), action: #selector(typeClicked(_:)),
-                              keyEquivalent: "")
-        item.target = self
-        item.representedObject = name
-        item.toolTip = "\(name): Touch ID → the current code is typed into the focused field and copied."
+    /// An account: its own submenu with what can be done to it.
+    private func accountItem(_ name: String, folder: String?, folders: [String]) -> NSMenuItem {
+        let item = NSMenuItem(title: displayName(name, inFolder: folder), action: nil, keyEquivalent: "")
+        item.toolTip = name
+        let sub = NSMenu()
+        // The code is not shown here: reading the key to draw it would skip the
+        // Touch ID gate. Touch ID → it is typed (and copied).
+        let type = action("Ввести код", #selector(typeClicked(_:)), name)
+        type.image = NSImage(systemSymbolName: "touchid", accessibilityDescription: nil)
+        sub.addItem(type)
+        sub.addItem(action("Backup Codes…", #selector(backupClicked(_:)), name))
+
+        let move = NSMenuItem(title: "Move", action: nil, keyEquivalent: "")
+        let moveMenu = NSMenu()
+        for f in folders {
+            let target = action(f, #selector(moveClicked(_:)), MoveTarget(account: name, folder: f))
+            target.state = f == folder ? .on : .off
+            moveMenu.addItem(target)
+        }
+        if !folders.isEmpty { moveMenu.addItem(.separator()) }
+        let top = action("No Folder", #selector(moveClicked(_:)), MoveTarget(account: name, folder: nil))
+        top.state = folder == nil ? .on : .off
+        moveMenu.addItem(top)
+        moveMenu.addItem(action("New Folder…", #selector(moveToNewFolderClicked(_:)), name))
+        move.submenu = moveMenu
+        sub.addItem(move)
+
+        sub.addItem(.separator())
+        sub.addItem(action("Remove…", #selector(removeClicked(_:)), name))
+        item.submenu = sub
         return item
     }
 
-    private func action(_ title: String, _ selector: Selector) -> NSMenuItem {
+    private final class MoveTarget: NSObject {
+        let account: String
+        let folder: String?
+        init(account: String, folder: String?) { self.account = account; self.folder = folder }
+    }
+
+    private func action(_ title: String, _ selector: Selector, _ object: Any? = nil) -> NSMenuItem {
         let item = NSMenuItem(title: title, action: selector, keyEquivalent: "")
         item.target = self
+        item.representedObject = object
         return item
-    }
-
-    private func namesSubmenu(_ title: String, _ selector: Selector, _ names: [String]) -> NSMenuItem {
-        let parent = NSMenuItem(title: title, action: nil, keyEquivalent: "")
-        let sub = NSMenu()
-        for name in names {
-            let item = NSMenuItem(title: name, action: selector, keyEquivalent: "")
-            item.target = self
-            item.representedObject = name
-            sub.addItem(item)
-        }
-        parent.submenu = sub
-        return parent
     }
 
     @objc private func typeClicked(_ sender: NSMenuItem) {
@@ -324,7 +370,69 @@ final class TwoFactorController: NSObject {
 
     @objc private func addClicked() { addManually() }
 
-    @objc private func groupClicked() { groupIntoFolder() }
+    @objc private func addFolderClicked() {
+        guard let name = askFolderName("Add a folder", "Accounts go into it with Move (in each account's menu).",
+                                       value: "", button: "Add") else { return }
+        OTPFolders.add(name)
+        log("2FA: folder \"\(name)\" added.")
+    }
+
+    @objc private func moveClicked(_ sender: NSMenuItem) {
+        guard let target = sender.representedObject as? MoveTarget else { return }
+        if OTPKeychain.setFolder(target.account, target.folder) {
+            log("2FA: \"\(target.account)\" moved to \(target.folder.map { "\"\($0)\"" } ?? "the top level").")
+        }
+    }
+
+    @objc private func moveToNewFolderClicked(_ sender: NSMenuItem) {
+        guard let account = sender.representedObject as? String,
+              let name = askFolderName("Move \"\(account)\" to a new folder", "", value: "", button: "Move")
+        else { return }
+        if OTPKeychain.setFolder(account, name) { log("2FA: \"\(account)\" moved to new folder \"\(name)\".") }
+    }
+
+    @objc private func renameFolderClicked(_ sender: NSMenuItem) {
+        guard let old = sender.representedObject as? String,
+              let new = askFolderName("Rename \"\(old)\"",
+                                      "Its accounts stay in it. An existing name merges the two folders.",
+                                      value: old, button: "Rename"),
+              new != old else { return }
+        let accounts = OTPKeychain.entries().filter { $0.folder == old }.map(\.name)
+        let moved = accounts.filter { OTPKeychain.setFolder($0, new) }.count
+        OTPFolders.rename(old, to: new)
+        if accounts.isEmpty { OTPFolders.add(new) }
+        log("2FA: folder \"\(old)\" renamed to \"\(new)\" (\(moved) account(s)).")
+    }
+
+    /// Removes the folder, not its accounts: they move to the top level.
+    @objc private func removeFolderClicked(_ sender: NSMenuItem) {
+        guard let folder = sender.representedObject as? String else { return }
+        let accounts = OTPKeychain.entries().filter { $0.folder == folder }.map(\.name)
+        if !accounts.isEmpty {
+            let alert = makeAlert("Remove the folder \"\(folder)\"?",
+                "Its \(accounts.count) account(s) are kept and move to the top level of OTP.")
+            alert.addButton(withTitle: "Remove Folder")
+            alert.addButton(withTitle: "Cancel")
+            guard runModal(alert) == .alertFirstButtonReturn else { return }
+        }
+        let moved = accounts.filter { OTPKeychain.setFolder($0, nil) }.count
+        OTPFolders.remove(folder)
+        log("2FA: folder \"\(folder)\" removed; \(moved) account(s) moved to the top level.")
+    }
+
+    /// A folder name dialog; nil when cancelled or blank.
+    private func askFolderName(_ title: String, _ text: String, value: String, button: String) -> String? {
+        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 300, height: 24))
+        field.stringValue = value
+        field.placeholderString = "Folder name"
+        let alert = makeAlert(title, text)
+        alert.accessoryView = field
+        alert.addButton(withTitle: button)
+        alert.addButton(withTitle: "Cancel")
+        alert.window.initialFirstResponder = field
+        guard runModal(alert) == .alertFirstButtonReturn else { return nil }
+        return OTPEntry(name: "", folder: field.stringValue).folder
+    }
 
     @objc private func backupClicked(_ sender: NSMenuItem) {
         guard let name = sender.representedObject as? String else { return }
@@ -560,52 +668,6 @@ final class TwoFactorController: NSObject {
         box.completes = true
         box.stringValue = value ?? ""
         return box
-    }
-
-    /// Several accounts into one folder at once: tick them, pick or name the
-    /// folder. A new name creates the folder; an empty one moves them to the top level.
-    func groupIntoFolder() {
-        let entries = OTPKeychain.entries().sorted {
-            $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
-        }
-        guard !entries.isEmpty else { return }
-
-        let rowHeight: CGFloat = 22
-        let listHeight = CGFloat(entries.count) * rowHeight
-        let list = NSView(frame: NSRect(x: 0, y: 0, width: 320, height: listHeight))
-        var checks: [(NSButton, String)] = []
-        for (i, entry) in entries.enumerated() {
-            let title = entry.folder.map { "\(entry.name)   (\($0))" } ?? entry.name
-            let check = NSButton(checkboxWithTitle: title, target: nil, action: nil)
-            check.frame = NSRect(x: 2, y: listHeight - CGFloat(i + 1) * rowHeight, width: 316, height: rowHeight)
-            list.addSubview(check)
-            checks.append((check, entry.name))
-        }
-        let scroll = NSScrollView(frame: NSRect(x: 0, y: 0, width: 340, height: min(listHeight + 4, 300)))
-        scroll.hasVerticalScroller = listHeight + 4 > 300
-        scroll.borderType = .bezelBorder
-        scroll.documentView = list
-        list.scroll(NSPoint(x: 0, y: listHeight))   // start at the top of the list
-
-        let folderBox = folderComboBox(NSRect(x: 0, y: scroll.frame.height + 8, width: 340, height: 26), value: nil)
-        let box = NSView(frame: NSRect(x: 0, y: 0, width: 340, height: scroll.frame.height + 34))
-        box.addSubview(scroll)
-        box.addSubview(folderBox)
-
-        let alert = makeAlert("Group into a folder",
-            "Tick the accounts, then pick a folder or type a new name. An empty folder name moves them back " +
-            "to the top level. Moving needs no Touch ID: only the menu layout changes.")
-        alert.accessoryView = box
-        alert.addButton(withTitle: "Move")
-        alert.addButton(withTitle: "Cancel")
-        alert.window.initialFirstResponder = folderBox
-        guard runModal(alert) == .alertFirstButtonReturn else { return }
-
-        let picked = checks.filter { $0.0.state == .on }.map(\.1)
-        guard !picked.isEmpty else { return }
-        let folder = OTPEntry(name: "", folder: folderBox.stringValue).folder
-        let moved = picked.filter { OTPKeychain.setFolder($0, folder) }.count
-        log("2FA: moved \(moved) account(s) to \(folder.map { "folder \"\($0)\"" } ?? "the top level").")
     }
 
     // MARK: Backup codes and removal
