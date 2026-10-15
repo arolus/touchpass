@@ -37,14 +37,24 @@ cp assets/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 # survive updates, and the 2FA items can live in iCloud Keychain. Without them
 # (another machine, CI) it falls back to the old ad-hoc signature, with no
 # entitlements — restricted entitlements without a profile would kill the app.
+# The identity lives in a dedicated keychain with its own random password
+# (~/.appstoreconnect/developer-id/, covered by secrets-backup): codesign in a
+# background session cannot unlock the login keychain, and this one is
+# unlocked here without anyone's login password.
 TEAM_ID="K8ZZA5DA72"
 PROFILE="assets/TouchPass.provisionprofile"
-IDENTITY="$(security find-identity -v -p codesigning 2>/dev/null \
-    | sed -n "s/.*\"\(Developer ID Application: .*($TEAM_ID)\)\"/\1/p" | head -1)"
+SIGN_DIR="$HOME/.appstoreconnect/developer-id"
+SIGN_KC="$SIGN_DIR/signing.keychain-db"
+IDENTITY=""
+if [ -f "$SIGN_KC" ] && [ -f "$SIGN_DIR/signing.pass" ]; then
+    security unlock-keychain -p "$(cat "$SIGN_DIR/signing.pass")" "$SIGN_KC"
+    IDENTITY="$(security find-identity -v -p codesigning "$SIGN_KC" 2>/dev/null \
+        | sed -n "s/.*\"\(Developer ID Application: .*($TEAM_ID)\)\"/\1/p" | head -1)"
+fi
 if [ -n "$IDENTITY" ] && [ -f "$PROFILE" ] && [ "${TOUCHPASS_ADHOC:-}" != "1" ]; then
     echo "==> Signing with $IDENTITY"
     cp "$PROFILE" "$APP/Contents/embedded.provisionprofile"
-    codesign --force --options runtime --timestamp \
+    codesign --force --options runtime --timestamp --keychain "$SIGN_KC" \
         --entitlements assets/TouchPass.entitlements --sign "$IDENTITY" "$APP"
     codesign --verify --strict "$APP"
 else
