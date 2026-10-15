@@ -48,11 +48,17 @@ SIGN_KC="$SIGN_DIR/signing.keychain-db"
 IDENTITY=""
 if [ -f "$SIGN_KC" ] && [ -f "$SIGN_DIR/signing.pass" ]; then
     security unlock-keychain -p "$(cat "$SIGN_DIR/signing.pass")" "$SIGN_KC"
+    # codesign resolves identities only through the search list: append the
+    # signing keychain once, keeping the existing entries.
+    if ! security list-keychains -d user | grep -q "$SIGN_KC"; then
+        eval "security list-keychains -d user -s $(security list-keychains -d user | tr '\n' ' ') \"$SIGN_KC\""
+    fi
+    # By SHA-1, not by name: unambiguous even if a copy shows up in another keychain.
     IDENTITY="$(security find-identity -v -p codesigning "$SIGN_KC" 2>/dev/null \
-        | sed -n "s/.*\"\(Developer ID Application: .*($TEAM_ID)\)\"/\1/p" | head -1)"
+        | sed -n "s/^ *[0-9]*) \([0-9A-F]\{40\}\) \"Developer ID Application: .*($TEAM_ID)\"/\1/p" | head -1)"
 fi
 if [ -n "$IDENTITY" ] && [ -f "$PROFILE" ] && [ "${TOUCHPASS_ADHOC:-}" != "1" ]; then
-    echo "==> Signing with $IDENTITY"
+    echo "==> Signing with the ARSIDIAN Developer ID ($TEAM_ID)"
     cp "$PROFILE" "$APP/Contents/embedded.provisionprofile"
     codesign --force --options runtime --timestamp --keychain "$SIGN_KC" \
         --entitlements assets/TouchPass.entitlements --sign "$IDENTITY" "$APP"
