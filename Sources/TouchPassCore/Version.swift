@@ -23,3 +23,14 @@ public func versionFromReleaseLocation(_ location: String) -> String? {
     guard parts.count >= 2, parts.allSatisfy({ !$0.isEmpty && $0.allSatisfy(\.isNumber) }) else { return nil }
     return version
 }
+
+/// Whether a permission's TCC entry must be reset before asking again.
+///
+/// Keep it only when it is a working grant of a stable (team-signed) identity.
+/// Everything else is stale or denied: an ad-hoc build's entry points at an
+/// older binary, and a team-signed app that is not granted may be looking at a
+/// toggle left over from an earlier ad-hoc build — shown "on", applying to
+/// nothing, and the system prompt never reappears until the entry is reset.
+public func shouldResetTCCEntry(teamSigned: Bool, granted: Bool) -> Bool {
+    !(teamSigned && granted)
+}

@@ -226,7 +226,7 @@ enum ScreenRecording {
     /// Same trick as Accessibility.resetAndRequest(): an ad-hoc signature changes
     /// with every build, so a stale TCC entry is dropped first to get a fresh prompt.
     static func resetAndRequest() {
-        CodeSigning.resetTCCIfAdHoc(["ScreenCapture"])
+        CodeSigning.resetTCCUnlessGranted("ScreenCapture", granted: isAllowed)
         CGRequestScreenCaptureAccess()
     }
 

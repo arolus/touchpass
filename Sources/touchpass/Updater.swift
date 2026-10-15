@@ -286,9 +286,15 @@ enum CodeSigning {
         return SecStaticCodeCheckValidity(code, flags, requirement) == errSecSuccess
     }
 
-    /// Clears stale TCC entries — only for ad-hoc builds, whose identity changes with every binary.
-    static func resetTCCIfAdHoc(_ services: [String]) {
-        guard !isTeamSigned else { return }
-        for service in services { run("/usr/bin/tccutil", ["reset", service, bundleID]) }
+    /// Clears a TCC entry unless it is a working grant of this very identity.
+    ///
+    /// `granted`: whether the running app already has the permission. An
+    /// ad-hoc build's entry always points at an older binary. A team-signed
+    /// build keeps a working grant across updates — but a toggle left over from
+    /// an earlier ad-hoc build shows "on" while not applying to it (the switch
+    /// from ad-hoc to signed, 1.2.0), and only a reset clears that.
+    static func resetTCCUnlessGranted(_ service: String, granted: Bool) {
+        guard shouldResetTCCEntry(teamSigned: isTeamSigned, granted: granted) else { return }
+        run("/usr/bin/tccutil", ["reset", service, bundleID])
     }
 }

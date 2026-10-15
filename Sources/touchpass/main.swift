@@ -232,8 +232,8 @@ enum Installer {
         // Запись TCC от прежнего билда всё равно протухла (ad-hoc подпись =
         // новая идентичность): сбрасываем, чтобы свежая копия могла поднять
         // системный промпт, а тумблер не висел включённым-но-нерабочим.
-        // A team-signed build keeps its identity, so its grant stays valid.
-        CodeSigning.resetTCCIfAdHoc(["Accessibility"])
+        // A team-signed build keeps its identity: a working grant stays.
+        CodeSigning.resetTCCUnlessGranted("Accessibility", granted: Accessibility.isTrusted)
         log("Установлен в \(installedPath).")
         return true
     }
@@ -399,7 +399,7 @@ enum Accessibility {
     /// Системных настройках выглядит включённым, а проверка не проходит, и
     /// повторный request() молчит (промпт показывается один раз на запись).
     static func resetAndRequest() {
-        CodeSigning.resetTCCIfAdHoc(["Accessibility"])
+        CodeSigning.resetTCCUnlessGranted("Accessibility", granted: isTrusted)
         request()
     }
 }
@@ -1540,7 +1540,8 @@ if !ready {
         let delay: TimeInterval = justInstalled ? 2.5 : 0
         DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
             log("Запрашиваю доступ Accessibility\(justInstalled ? " (после паузы на индексацию)" : "").")
-            Accessibility.request()
+            // Not granted: any existing entry is stale (e.g. left by an ad-hoc build) — reset, then ask.
+            Accessibility.resetAndRequest()
         }
     }
     openSetup()

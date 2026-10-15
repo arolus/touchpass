@@ -18,3 +18,21 @@ final class VersionTests: XCTestCase {
         XCTAssertNil(versionFromReleaseLocation("https://github.com/arolus/touchpass/releases/tag/v1..2"))
     }
 }
+
+final class TCCResetTests: XCTestCase {
+    // Regression (1.2.0): after switching from an ad-hoc build to the signed
+    // one, the old Accessibility toggle stayed "on" for the ad-hoc identity and
+    // "Allow…" did not reset it, because signed builds never reset.
+    func testSignedButNotGrantedResets() {
+        XCTAssertTrue(shouldResetTCCEntry(teamSigned: true, granted: false))
+    }
+
+    func testWorkingSignedGrantIsKept() {
+        XCTAssertFalse(shouldResetTCCEntry(teamSigned: true, granted: true))
+    }
+
+    func testAdHocAlwaysResets() {
+        XCTAssertTrue(shouldResetTCCEntry(teamSigned: false, granted: false))
+        XCTAssertTrue(shouldResetTCCEntry(teamSigned: false, granted: true))
+    }
+}
