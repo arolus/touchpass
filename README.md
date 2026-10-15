@@ -150,6 +150,18 @@ git commit … && git push     # publish-touchpass mirrors the source
 ./release.sh                 # build, sign, notarize, wait for the mirror, gh release create
 ```
 
+Signing setup on the maintainer's Mac: the identity is in a dedicated keychain
+`~/.appstoreconnect/developer-id/signing.keychain-db` (codesign in a background
+session cannot use the login keychain without the login password); its random
+password is the login keychain item `com.arsidian.signing-keychain`. To rebuild
+it (new Mac), from that folder: `security create-keychain -p "$PW" signing.keychain-db`,
+`security import DeveloperIDG2CA.cer`, `devid.key` (`-T /usr/bin/codesign`) and
+`devid.cer` into it, `security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$PW"`,
+then store `$PW` under that service. The certificate itself (Developer ID
+Application G2, expires 2027-11-14) can be re-issued only by the Account Holder
+on developer.apple.com; the profile is regenerated through the ASC API
+(`MAC_APP_DIRECT` for bundle ID `com.arsidian.touchpass`).
+
 First switch from an ad-hoc build to a signed one: grant Accessibility once
 more, and the login keychain asks once for the password item («Always Allow»);
 2FA accounts saved by an ad-hoc build stay in the local keychain and are not

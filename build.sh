@@ -37,17 +37,20 @@ cp assets/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 # survive updates, and the 2FA items can live in iCloud Keychain. Without them
 # (another machine, CI) it falls back to the old ad-hoc signature, with no
 # entitlements — restricted entitlements without a profile would kill the app.
-# The identity lives in a dedicated keychain with its own random password
-# (~/.appstoreconnect/developer-id/, covered by secrets-backup): codesign in a
-# background session cannot unlock the login keychain, and this one is
-# unlocked here without anyone's login password.
+# The identity lives in a dedicated keychain (~/.appstoreconnect/developer-id/):
+# codesign in a background session (tmux, launchd) cannot use a key in the
+# login keychain without the login password. Its random password is a login
+# keychain item (service com.arsidian.signing-keychain), readable here without
+# prompts. If it is ever lost, rebuild the keychain from devid.key + devid.cer
+# in the same folder (covered by secrets-backup) — see README.
 TEAM_ID="K8ZZA5DA72"
 PROFILE="assets/TouchPass.provisionprofile"
 SIGN_DIR="$HOME/.appstoreconnect/developer-id"
 SIGN_KC="$SIGN_DIR/signing.keychain-db"
 IDENTITY=""
-if [ -f "$SIGN_KC" ] && [ -f "$SIGN_DIR/signing.pass" ]; then
-    security unlock-keychain -p "$(cat "$SIGN_DIR/signing.pass")" "$SIGN_KC"
+SIGN_PASS="$(security find-generic-password -s com.arsidian.signing-keychain -w 2>/dev/null || true)"
+if [ -f "$SIGN_KC" ] && [ -n "$SIGN_PASS" ]; then
+    security unlock-keychain -p "$SIGN_PASS" "$SIGN_KC"
     # codesign resolves identities only through the search list: append the
     # signing keychain once, keeping the existing entries.
     if ! security list-keychains -d user | grep -q "$SIGN_KC"; then
