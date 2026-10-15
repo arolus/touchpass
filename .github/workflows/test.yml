@@ -1,0 +1,18 @@
+name: Test
+
+# Runs the TouchPassCore tests on every push. Releases are NOT built here:
+# they are signed with the ARSIDIAN Developer ID and notarized by release.sh
+# on the maintainer's Mac, so the certificate never leaves it. An unsigned CI
+# build must never become a release — installed copies refuse to step down
+# from a team-signed version anyway.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: swift test

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Applied only to Developer ID builds (build.sh picks them when the
+     certificate and the provisioning profile are present). The keychain
+     access group puts the 2FA items in the data-protection keychain, which is
+     what iCloud Keychain syncs; macOS honours it only with the embedded
+     profile, so an ad-hoc build is signed without these entitlements. -->
+<plist version="1.0">
+<dict>
+    <key>com.apple.application-identifier</key>
+    <string>K8ZZA5DA72.com.arsidian.touchpass</string>
+    <key>com.apple.developer.team-identifier</key>
+    <string>K8ZZA5DA72</string>
+    <key>keychain-access-groups</key>
+    <array>
+        <string>K8ZZA5DA72.com.arsidian.touchpass</string>
+    </array>
+</dict>
+</plist>

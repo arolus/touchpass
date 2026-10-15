@@ -1,0 +1,7 @@
+/.build/
+/touchpass
+/TouchPass.app/
+/assets/AppIcon.iconset/
+/assets/icon_1024.png
+.DS_Store
+/TouchPass.app.zip

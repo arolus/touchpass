@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.arsidian.touchpass</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>__TOUCHPASS_BIN__</string>
+        <string>--agent</string>
+    </array>
+
+    <key>RunAtLoad</key>
+    <true/>
+    <!-- false: «Выход» из меню должен реально закрывать до следующего входа,
+         а не воскрешать процесс через launchd (то же и в самоустановке кода). -->
+    <key>KeepAlive</key>
+    <false/>
+
+    <key>StandardOutPath</key>
+    <string>__TOUCHPASS_LOGS__/touchpass.out.log</string>
+    <key>StandardErrorPath</key>
+    <string>__TOUCHPASS_LOGS__/touchpass.err.log</string>
+
+    <key>ProcessType</key>
+    <string>Interactive</string>
+</dict>
+</plist>
