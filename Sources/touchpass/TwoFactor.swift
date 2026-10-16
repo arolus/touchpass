@@ -179,7 +179,7 @@ enum CodeClipboard {
     /// Marks the entry as a secret for clipboard managers (nspasteboard.org convention).
     private static let concealed = NSPasteboard.PasteboardType("org.nspasteboard.ConcealedType")
 
-    /// Copies the code and wipes it later unless the clipboard changed meanwhile. Main thread.
+    /// Copies a code or the password and wipes it later unless the clipboard changed meanwhile. Main thread.
     static func copy(_ code: String) {
         let pb = NSPasteboard.general
         pb.clearContents()

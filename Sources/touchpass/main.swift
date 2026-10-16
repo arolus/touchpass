@@ -601,6 +601,28 @@ final class Typer {
     /// Ручной триггер из меню — ввести пароль в активное окно (какое угодно).
     func typeNow() { perform(reason: "ввести сохранённый пароль", requireScreenSharing: false) }
 
+    /// Touch ID → the password goes to the clipboard (wiped after otpClipboardLifetime).
+    /// Needs no Accessibility: nothing is typed.
+    func copyNow() {
+        Thread.detachNewThread { [weak self] in
+            guard let self = self else { return }
+            guard self.begin() else { log("Ввод уже идёт — пропуск."); return }
+            defer { self.end() }
+
+            guard Keychain.hasPassword else { self.problem("Пароль не сохранён."); return }
+            guard Biometrics.authenticate(reason: "скопировать сохранённый пароль") else {
+                log("Touch ID не пройден или отменён.")
+                return
+            }
+            guard let password = Keychain.readPassword() else {
+                self.problem("Keychain не отдал пароль — сохраните его заново.")
+                return
+            }
+            DispatchQueue.main.sync { CodeClipboard.copy(password) }
+            log("Password copied to the clipboard.")
+        }
+    }
+
     /// Авто-триггер при подключении к Screen Sharing — печатаем ТОЛЬКО если окно
     /// Screen Sharing всё ещё активно (иначе пароль улетел бы в чужое окно).
     func typeIntoScreenShare() {
@@ -828,6 +850,7 @@ final class ScreenShareWatcher {
 final class StatusBarController: NSObject {
     private let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
     var onTypeNow: (() -> Void)?
+    var onCopyNow: (() -> Void)?
     var onOpenSetup: (() -> Void)?
     var twoFactor: TwoFactorController?
     var updater: Updater?
@@ -863,12 +886,18 @@ extension StatusBarController: NSMenuDelegate {
         type.isEnabled = ready
         menu.addItem(type)
 
+        let copy = NSMenuItem(title: "Скопировать пароль", action: #selector(copyClicked), keyEquivalent: "")
+        copy.target = self
+        copy.isEnabled = Keychain.hasPassword
+        menu.addItem(copy)
+
         if !ready {
             let why = !Keychain.hasPassword ? "пароль не сохранён" : "нет прав Accessibility"
             let hint = NSMenuItem(title: "Не готов: \(why)", action: #selector(setupClicked), keyEquivalent: "")
             hint.target = self
             menu.addItem(hint)
         }
+        menu.addItem(.separator())
 
         // 2FA codes: OTP → [folder →] account → Touch ID → the code is typed.
         if let twoFactor = twoFactor {
@@ -901,6 +930,7 @@ extension StatusBarController: NSMenuDelegate {
     }
 
     @objc private func typeClicked() { onTypeNow?() }
+    @objc private func copyClicked() { onCopyNow?() }
     @objc private func toggleAutoUpdate() { autoUpdateEnabled.toggle() }
     @objc private func checkUpdates() { updater?.checkAndApply(force: true) }
     @objc private func setupClicked() { onOpenSetup?() }
@@ -1514,6 +1544,7 @@ updater.start()
 func openSetup() { DispatchQueue.main.async { setup.show() } }
 
 statusBar.onTypeNow = { typer.typeNow() }
+statusBar.onCopyNow = { typer.copyNow() }
 statusBar.onOpenSetup = { openSetup() }
 typer.onProblem = { [weak setup] in setup?.report(problem: $0) }   // молча не падаем
 

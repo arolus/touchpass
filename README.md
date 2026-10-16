@@ -23,6 +23,9 @@
   (пауза 0–10 с; поле активно только при включённом автовводе).
 - **Вручную** — меню в статус-баре → **«Ввести пароль»** (для любого поля, не
   только Screen Sharing).
+- **Copy** — «Скопировать пароль» right below: Touch ID → the password goes to the
+  clipboard (marked concealed, wiped after 45 s unless something else was copied);
+  needs no Accessibility.
 
 Дальше одинаково:
 
@@ -244,7 +247,7 @@ touchpass --otp-selftest # Keychain round trip for 2FA with a throwaway account
 бандла, приложение читает её оттуда: `--version`, первая строка `--status`,
 пункт меню, шапка окна. Запуск бинаря из `.build` (мимо бандла) показывает `dev`.
 
-В статус-баре — иконка отпечатка. Меню: «Ввести пароль», OTP (2FA codes), «Настройка…», выход.
+В статус-баре — иконка отпечатка. Меню: «Ввести пароль», «Скопировать пароль», OTP (2FA codes), «Настройка…», выход.
 Один экземпляр (flock): повторный запуск открывает окно в уже работающем.
 
 ## Ограничения
