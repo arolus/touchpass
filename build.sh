@@ -31,6 +31,19 @@ sed "s|__VERSION__|$VERSION|g" assets/Info.plist > "$APP/Contents/Info.plist"
 cp "$BIN" "$APP/Contents/MacOS/touchpass"
 cp assets/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 
+# The Safari web extension (context menu search). SwiftPM cannot build an .appex,
+# so it is assembled by hand: a small binary with the extension entry point, the
+# plist and the web resources.
+echo "==> Building the Safari extension..."
+APPEX="$APP/Contents/PlugIns/TouchPassSafari.appex"
+mkdir -p "$APPEX/Contents/MacOS" "$APPEX/Contents/Resources"
+sed "s|__VERSION__|$VERSION|g" SafariExtension/Info.plist > "$APPEX/Contents/Info.plist"
+cp -R SafariExtension/Resources/ "$APPEX/Contents/Resources/"
+sed -i '' "s|__VERSION__|$VERSION|g" "$APPEX/Contents/Resources/manifest.json"
+swiftc -O -parse-as-library -application-extension -target "$(uname -m)-apple-macos14.0" \
+    -module-name TouchPassSafari -Xlinker -e -Xlinker _NSExtensionMain \
+    SafariExtension/Handler.swift -o "$APPEX/Contents/MacOS/TouchPassSafari"
+
 # Signing. With the ARSIDIAN Developer ID certificate in the keychain and the
 # provisioning profile in assets/, the bundle is signed by the team: a stable
 # identity, so Accessibility / Screen Recording grants and Keychain access
@@ -63,11 +76,15 @@ fi
 if [ -n "$IDENTITY" ] && [ -f "$PROFILE" ] && [ "${TOUCHPASS_ADHOC:-}" != "1" ]; then
     echo "==> Signing with the ARSIDIAN Developer ID ($TEAM_ID)"
     cp "$PROFILE" "$APP/Contents/embedded.provisionprofile"
+    # Inside out: the app's signature seals the already signed extension.
+    codesign --force --options runtime --timestamp --keychain "$SIGN_KC" \
+        --entitlements SafariExtension/TouchPassSafari.entitlements --sign "$IDENTITY" "$APPEX"
     codesign --force --options runtime --timestamp --keychain "$SIGN_KC" \
         --entitlements assets/TouchPass.entitlements --sign "$IDENTITY" "$APP"
     codesign --verify --strict "$APP"
 else
     echo "==> Ad-hoc signature (no Developer ID certificate or profile here)"
+    codesign --force --entitlements SafariExtension/TouchPassSafari.entitlements --sign - "$APPEX" 2>/dev/null || true
     codesign --force --sign - "$APP" 2>/dev/null || echo "⚠️ codesign failed (not critical)"
 fi
 

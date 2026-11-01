@@ -30,6 +30,7 @@ import AppKit
 import LocalAuthentication
 import Carbon.HIToolbox   // UCKeyTranslate, TIS* — раскладка → keycode
 import Darwin
+import SafariServices
 import TouchPassCore
 
 // MARK: - Константы
@@ -910,6 +911,9 @@ extension StatusBarController: NSMenuDelegate {
         let setup = NSMenuItem(title: "Настройка…", action: #selector(setupClicked), keyEquivalent: ",")
         setup.target = self
         menu.addItem(setup)
+        let safari = NSMenuItem(title: "Safari Extension…", action: #selector(safariExtensionClicked), keyEquivalent: "")
+        safari.target = self
+        menu.addItem(safari)
         if updater != nil, Updater.canUpdate {
             menu.addItem(.separator())
             let auto = NSMenuItem(title: "Auto-update", action: #selector(toggleAutoUpdate), keyEquivalent: "")
@@ -934,6 +938,11 @@ extension StatusBarController: NSMenuDelegate {
     @objc private func toggleAutoUpdate() { autoUpdateEnabled.toggle() }
     @objc private func checkUpdates() { updater?.checkAndApply(force: true) }
     @objc private func setupClicked() { onOpenSetup?() }
+    @objc private func safariExtensionClicked() {
+        SFSafariApplication.showPreferencesForExtension(withIdentifier: "com.arsidian.touchpass.safari") { error in
+            if let error = error { log("Safari extension settings: \(error.localizedDescription)") }
+        }
+    }
 }
 
 // MARK: - Строка чек-листа
