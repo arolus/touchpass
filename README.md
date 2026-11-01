@@ -244,8 +244,15 @@ touchpass --otp-selftest # Keychain round trip for 2FA with a throwaway account
 `SafariExtension/` is a web extension embedded in the app
 (`Contents/PlugIns/TouchPassSafari.appex`). With text selected, the context menu has
 **Search** → Google (new tab), Google Maps and Yandex Maps (a small window centered over
-the current one). It has no access to pages and does not talk to the app: the selection
+the current one). It reads no page content and does not talk to the app: the selection
 comes with the click. Passwords and codes never reach it.
+
+`activeTab` in the manifest is required: with `contextMenus` alone Safari creates the items
+without any error and never shows them. Safari also hides a Developer ID extension that is
+not notarized, so a plain `build.sh` build disappears from its list until it is notarized.
+The checkbox survives a rebuild of the same extension. Safari refuses to turn the extension
+on from a synthetic click ("an app or service interfered with clicking"): a person has to
+tick it.
 
 Enable it once: menu «Safari Extension…» → tick TouchPass (Safari 18.4+, because the
 extension is Developer ID signed and comes from outside the App Store). It updates with
