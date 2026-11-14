@@ -6,8 +6,10 @@ import NetworkExtension
 import TouchPassCore
 
 enum EncryptedDNS {
-    /// Where the person enables a DNS configuration (System Settings → Network → VPN & Filters).
-    static let settingsURL = URL(string: "x-apple.systempreferences:com.apple.NetworkExtensionSettingsUI.NESettingsUIExtension")!
+    /// Where the person enables a DNS configuration: System Settings → Network → Filters
+    /// (macOS 26; "VPN & Filters" on macOS 15). The NetworkExtensionSettingsUI pane opens
+    /// the VPN list instead, where DNS configurations are not shown, so open Network itself.
+    static let settingsURL = URL(string: "x-apple.systempreferences:com.apple.Network-Settings.extension")!
 
     private static var manager: NEDNSSettingsManager { .shared() }
 

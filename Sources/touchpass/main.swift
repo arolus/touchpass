@@ -974,7 +974,8 @@ extension StatusBarController: NSMenuDelegate {
         let alert = NSAlert()
         alert.messageText = "Turn on Encrypted DNS in System Settings"
         alert.informativeText = "macOS lets an app add a DNS configuration, but only you can enable it: " +
-            "System Settings → Network → VPN & Filters → \"\(EncryptedDNSConfig.name)\" → Enabled. " +
+            "System Settings → Network → Filters (bottom of the list; \"VPN & Filters\" on macOS 15) → " +
+            "\"\(EncryptedDNSConfig.name)\" → Enabled. It is not in the VPN section. " +
             "This is needed once; after that the menu item switches it on and off."
         alert.addButton(withTitle: "Open System Settings")
         alert.addButton(withTitle: "Cancel")

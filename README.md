@@ -252,8 +252,10 @@ TLS SNI. Google rather than Cloudflare: Google passes ECS, so CDNs answer with n
 How it works: `NEDNSSettingsManager` (entitlement
 `com.apple.developer.networking.networkextension = [dns-settings]`, in the Developer ID
 profile since 1.4). The first click saves the configuration; macOS then wants it enabled
-by hand, once: System Settings → Network → VPN & Filters → «TouchPass Encrypted DNS
-(Google)». After that the item only swaps the configuration's on-demand rule (connect =
+by hand, once: System Settings → Network → Filters (bottom of the list; "VPN & Filters"
+on macOS 15) → «TouchPass Encrypted DNS (Google)». It is not in the top-level VPN section,
+which is where `com.apple.NetworkExtensionSettingsUI.NESettingsUIExtension` lands, so the
+hint's button opens the Network pane (1.4.1). After that the item only swaps the configuration's on-demand rule (connect =
 on, disconnect = off). The state ↔ rule mapping is `TouchPassCore/EncryptedDNS.swift`,
 covered by tests. From a terminal: `TouchPass.app/Contents/MacOS/touchpass --dns
 status|on|off|remove`.
