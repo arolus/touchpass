@@ -852,6 +852,7 @@ final class StatusBarController: NSObject {
     private let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
     var onTypeNow: (() -> Void)?
     var onCopyNow: (() -> Void)?
+    var dnsState: EncryptedDNSState = .unknown
     var onOpenSetup: (() -> Void)?
     var twoFactor: TwoFactorController?
     var updater: Updater?
@@ -908,6 +909,19 @@ extension StatusBarController: NSMenuDelegate {
         }
 
         menu.addItem(.separator())
+        // Encrypted DNS: the title shows the last known state at once, then the
+        // saved one when it loads (the menu updates while open).
+        let dns = NSMenuItem(title: dnsState.menuTitle, action: #selector(dnsClicked), keyEquivalent: "")
+        dns.target = self
+        dns.state = dnsState.isActive ? .on : .off
+        menu.addItem(dns)
+        EncryptedDNS.load { [weak self, weak dns] state in
+            self?.dnsState = state
+            dns?.title = state.menuTitle
+            dns?.state = state.isActive ? .on : .off
+        }
+
+        menu.addItem(.separator())
         let setup = NSMenuItem(title: "Настройка…", action: #selector(setupClicked), keyEquivalent: ",")
         setup.target = self
         menu.addItem(setup)
@@ -938,6 +952,36 @@ extension StatusBarController: NSMenuDelegate {
     @objc private func toggleAutoUpdate() { autoUpdateEnabled.toggle() }
     @objc private func checkUpdates() { updater?.checkAndApply(force: true) }
     @objc private func setupClicked() { onOpenSetup?() }
+    @objc private func dnsClicked() {
+        // A configuration that is saved but not enabled needs the person, not a save.
+        if case .needsApproval = dnsState { showDNSApprovalHint(); return }
+        EncryptedDNS.set(on: dnsState.targetOnClick) { [weak self] result in
+            switch result {
+            case .success(let state):
+                self?.dnsState = state
+                if case .needsApproval = state { self?.showDNSApprovalHint() }
+            case .failure(let error):
+                let alert = NSAlert()
+                alert.messageText = "Encrypted DNS was not changed"
+                alert.informativeText = error.localizedDescription
+                NSApp.activate(ignoringOtherApps: true)
+                alert.runModal()
+            }
+        }
+    }
+
+    private func showDNSApprovalHint() {
+        let alert = NSAlert()
+        alert.messageText = "Turn on Encrypted DNS in System Settings"
+        alert.informativeText = "macOS lets an app add a DNS configuration, but only you can enable it: " +
+            "System Settings → Network → VPN & Filters → \"\(EncryptedDNSConfig.name)\" → Enabled. " +
+            "This is needed once; after that the menu item switches it on and off."
+        alert.addButton(withTitle: "Open System Settings")
+        alert.addButton(withTitle: "Cancel")
+        NSApp.activate(ignoringOtherApps: true)
+        if alert.runModal() == .alertFirstButtonReturn { EncryptedDNS.openSettings() }
+    }
+
     @objc private func safariExtensionClicked() {
         SFSafariApplication.showPreferencesForExtension(withIdentifier: "com.arsidian.touchpass.safari") { error in
             if let error = error { log("Safari extension settings: \(error.localizedDescription)") }
@@ -1517,6 +1561,10 @@ if args.contains("--status") {
 
 if args.contains("--otp-selftest") {
     exit(runOTPSelfTest() ? 0 : 1)
+}
+
+if let i = args.firstIndex(of: "--dns") {
+    exit(runDNSCommand(i + 1 < args.count ? args[i + 1] : ""))
 }
 
 // `--agent` — фоновый запуск из LaunchAgent.
